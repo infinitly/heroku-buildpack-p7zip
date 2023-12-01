@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# bin/compile <build-dir> <cache-dir> <env-dir>
+
+# Fail fast
+set -e
+
+# Debug
+# set -x
+
+BUILD_DIR=$1
+CACHE_DIR=$2
+
+VENDOR_DIR="vendor/p7zip"
+
+PATH="$BUILD_DIR/$VENDOR_DIR/bin:$PATH"
+LD_LIBRARY_PATH="$BUILD_DIR/$VENDOR_DIR/lib:$LD_LIBRARY_PATH"
+LIBRARY_PATH="$BUILD_DIR/$VENDOR_DIR/lib:$LD_LIBRARY_PATH"
+
+P7ZIP_VERSION=16.02
+DOWNLOAD_URL="http://downloads.sourceforge.net/project/p7zip/p7zip/$P7ZIP_VERSION/p7zip_${P7ZIP_VERSION}_x86_linux_bin.tar.bz2"
+PACKAGE_FILENAME=${DOWNLOAD_URL##*/}
+PACKAGE_DIR="${PACKAGE_FILENAME//$P7ZIP_VERSION/${P7ZIP_VERSION//./-}}"
+PACKAGE_DIR="$CACHE_DIR/${PACKAGE_DIR%%.*}"
+
+function indent() {
+  c='s/^/       /'
+  case $(uname) in
+    Darwin) sed -l "$c";;
+    *)      sed -u "$c";;
+  esac
+}
+
+arrow() {
+  sed -u 's/^/-----> /'
+}
+
+if [ ! -d "$PACKAGE_DIR" ]; then
+  if [ ! -f "$CACHE_DIR/$PACKAGE_FILENAME" ]; then
+    echo "p7zip-buildpack: Package URL: $DOWNLOAD_URL" | arrow
+    curl --location --output "$CACHE_DIR/$PACKAGE_FILENAME" $DOWNLOAD_URL | indent
+  fi
+
+  mkdir -p "$PACKAGE_DIR"
+  tar jxf "$CACHE_DIR/$PACKAGE_FILENAME" -C "$PACKAGE_DIR" | indent
+  echo "p7zip-buildpack: Extracted in $PACKAGE_DIR" | arrow
+  rm "$CACHE_DIR/$PACKAGE_FILENAME"
+fi
+
+echo "p7zip-buildpack: Setup" | arrow
+mkdir -p "$BUILD_DIR/bin" "$BUILD_DIR/lib/Codecs"
+mkdir -p "$BUILD_DIR/$VENDOR_DIR/bin" "$BUILD_DIR/$VENDOR_DIR/lib/Codecs"
+
+echo "p7zip-buildpack: Moving the p7zip script into app/bin" | arrow
+cp "$PACKAGE_DIR/p7zip_$P7ZIP_VERSION/bin/7z" "$BUILD_DIR/$VENDOR_DIR/bin/7z"
+chmod +x "$BUILD_DIR/$VENDOR_DIR/bin/7z"
+ln -s "$BUILD_DIR/$VENDOR_DIR/bin/7z" "$BUILD_DIR/bin/7z"
+
+cp "$PACKAGE_DIR/p7zip_$P7ZIP_VERSION/bin/7za" "$BUILD_DIR/$VENDOR_DIR/bin/7za"
+chmod +x "$BUILD_DIR/$VENDOR_DIR/bin/7za"
+ln -s "$BUILD_DIR/$VENDOR_DIR/bin/7za" "$BUILD_DIR/bin/7za"
+
+cp "$PACKAGE_DIR/p7zip_$P7ZIP_VERSION/bin/7zr" "$BUILD_DIR/$VENDOR_DIR/bin/7zr"
+chmod +x "$BUILD_DIR/$VENDOR_DIR/bin/7zr"
+ln -s "$BUILD_DIR/$VENDOR_DIR/bin/7zr" "$BUILD_DIR/bin/7zr"
+
+echo "p7zip-buildpack: Moving the p7zip lib into app/lib" | arrow
+cp "$PACKAGE_DIR/p7zip_$P7ZIP_VERSION/bin/7z.so" "$BUILD_DIR/$VENDOR_DIR/lib/7z.so"
+chmod +x "$BUILD_DIR/$VENDOR_DIR/lib/7z.so"
+ln -s "$BUILD_DIR/$VENDOR_DIR/lib/7z.so" "$BUILD_DIR/lib/7z.so"
+
+cp "$PACKAGE_DIR/p7zip_$P7ZIP_VERSION/bin/7zCon.sfx" "$BUILD_DIR/$VENDOR_DIR/lib/7zCon.sfx"
+chmod +x "$BUILD_DIR/$VENDOR_DIR/lib/7zCon.sfx"
+ln -s "$BUILD_DIR/$VENDOR_DIR/lib/7zCon.sfx" "$BUILD_DIR/lib/7zCon.sfx"
+
+cp "$PACKAGE_DIR/p7zip_$P7ZIP_VERSION/bin/Codecs/Rar.so" "$BUILD_DIR/$VENDOR_DIR/lib/Codecs/Rar.so"
+chmod +x "$BUILD_DIR/$VENDOR_DIR/lib/Codecs/Rar.so"
+ln -s "$BUILD_DIR/$VENDOR_DIR/lib/Codecs/Rar.so" "$BUILD_DIR/lib/Codecs/Rar.so"
+
+# https://github.com/masamitsu-murase/seven_zip_ruby/blob/master/lib/seven_zip_ruby.rb#L9
+# for Rails add "$LOAD_PATH.unshift File.expand_path('../vendor/p7zip', __dir__)" to config/boot.rb
+ln -s "$BUILD_DIR/$VENDOR_DIR/lib" "$BUILD_DIR/$VENDOR_DIR/seven_zip_ruby"
+
+echo "p7zip-buildpack: Exporting PATH" | arrow
+PROFILE_PATH="$BUILD_DIR/.profile.d/p7zip.sh"
+mkdir -p $(dirname $PROFILE_PATH)
+echo "export PATH=\"\$PATH:/app/$VENDOR_DIR/bin\"" >>"$PROFILE_PATH"
+echo "export LD_LIBRARY_PATH=\"\$LD_LIBRARY_PATH:/app/$VENDOR_DIR/lib\"" >>"$PROFILE_PATH"
+echo "export LIBRARY_PATH=\"\$LIBRARY_PATH:/app/$VENDOR_DIR/lib\"" >>"$PROFILE_PATH"

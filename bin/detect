@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+echo "p7zip"
+exit 0

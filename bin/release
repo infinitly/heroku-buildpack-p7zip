@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# bin/release <build-dir>
+
+cat <<EOF
+---
+addons: []
+default_process_types: {}
+config_vars:
+  PATH: $PATH:$BUILD_DIR/vendor/p7zip/bin
+  LD_LIBRARY_PATH: $LD_LIBRARY_PATH:$BUILD_DIR/vendor/p7zip/lib
+  LIBRARY_PATH: $LD_LIBRARY_PATH:$BUILD_DIR/vendor/p7zip/lib
+EOF
